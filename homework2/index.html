@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Homework 2 – From wallet seed to Ethereum address</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+<h1>Homework 2: From Wallet Seed to Ethereum Address</h1>
+<p class="sub">Hashing, key derivation and the cryptographic primitives behind an Ethereum wallet.</p>
+
+<section id="hw2">
+<p>Click through the pipeline. Each stage has a different job, which is the whole point of not using one algorithm for everything.</p>
+<div class="card">
+ <div class="stages" id="stages"></div>
+ <div id="stageInfo" style="margin-top:10px"></div>
+</div>
+
+<h3>Terms I had to keep apart</h3>
+<table>
+<tr><td><b>Key generation</b></td><td>Creating fresh secret randomness (the entropy behind the mnemonic). Only this step needs a good random source.</td></tr>
+<tr><td><b>Key derivation</b></td><td>Deterministically computing keys from something that already exists (seed → child keys). Same input, same output, always.</td></tr>
+<tr><td><b>Public-key crypto</b></td><td>secp256k1: a pair (private k, public Q = kG) with a one-way link; used for signatures.</td></tr>
+<tr><td><b>Hashing</b></td><td>Keccak-256: fixed-size fingerprint, no key, one-way, avalanche behaviour.</td></tr>
+<tr><td><b>Checksum</b></td><td>EIP-55: extra redundancy to <em>detect typos</em>; not secret and not a security measure against attackers.</td></tr>
+<tr><td><b>Encoding</b></td><td>Just a representation of bytes (hex, word lists, letter case). Reversible, no secrecy at all.</td></tr>
+</table>
+
+<h2>Try the primitives</h2>
+<div class="card">
+ <h3 style="margin-top:0">Keccak-256 vs SHA3-256 + avalanche</h3>
+ <input type="text" id="msg" value="hello ethereum">
+ <pre id="hashes"></pre>
+ <p class="mute">Same permutation, same input, different padding byte (0x01 for Keccak, 0x06 for NIST SHA-3), so the digests are unrelated. The avalanche line flips one bit of the first input byte.</p>
+</div>
+<div class="card">
+ <h3 style="margin-top:0">EIP-55 checksum</h3>
+ <p class="mute">Paste a 40-hex-character address (the default is the example from the EIP). Letters become uppercase when the matching hex digit of keccak256(lowercase address) is ≥ 8.</p>
+ <input type="text" id="addr" value="0x5aaeb6053f3e94c9b9a09f33669435e7ef1beaed">
+ <pre id="eip"></pre>
+</div>
+
+<h2>Historical context</h2>
+<ul class="tl">
+<li><b>1977 – RSA.</b> First practical public-key system.</li>
+<li><b>2001 – SHA-2 / SHA-512.</b> Standardised by NIST; BIP-39 later uses it inside HMAC/PBKDF2.</li>
+<li><b>2012 – BIP-32.</b> Hierarchical deterministic wallets: one seed, a tree of keys.</li>
+<li><b>2013 – BIP-39.</b> Mnemonic words that encode the seed.</li>
+<li><b>2014 – BIP-44.</b> Standard paths for multi-account, multi-coin wallets (<code>m/44'/60'/0'/0/0</code> for Ethereum).</li>
+<li><b>2015 – SHA-3.</b> NIST standardises Keccak (the winner of a 2012 competition). Ethereum was already using the pre-standard Keccak.</li>
+<li><b>2016 – EIP-55.</b> Mixed-case checksum for addresses.</li>
+</ul>
+<p><b>SHA-2 vs Keccak/SHA-3.</b> SHA-2 is a Merkle–Damgård design (compression function chained over blocks); SHA-3 is a sponge built on the Keccak-f[1600] permutation, so it is a completely different internal structure chosen partly as a "plan B" if SHA-2 ever broke. Ethereum's Keccak-256 predates the final standard: NIST changed the padding/domain-separation bytes, so Keccak-256 ≠ SHA3-256 even though the core is identical (the demo above shows it).</p>
+
+<h2>Why so many different techniques?</h2>
+<p>Each step solves a different problem and needs different properties:</p>
+<ul>
+<li><b>BIP-39/32/44</b> – key management: back up 12–24 words instead of many keys, derive an unlimited, reproducible tree of keys in a standard layout so wallets are interchangeable.</li>
+<li><b>secp256k1</b> – a one-way relation between private and public key that also allows signatures others can verify without learning the secret. A hash alone can't do that.</li>
+<li><b>Keccak-256</b> – compresses a 64-byte public key into a 20-byte identifier and hides the raw public key until the first transaction.</li>
+<li><b>EIP-55</b> – catches typos at essentially no cost, without changing the address format.</li>
+</ul>
+<p>Statistical angle: the seed, private key and Keccak output should all look uniformly random; the Keccak step should show avalanche; EIP-55 is deliberately pseudo-random as well, so a single wrong letter breaks the pattern with probability about 1 − 2⁻ᴸ (L = number of letters, ~15 on average → ≈ 99.99%).</p>
+
+<h3>Wallet experiment (to do by hand)</h3>
+<ul>
+<li>Create a wallet in MetaMask, import the same phrase into Rabby: same address at index 0 → the derivation is standard.</li>
+<li>Add a BIP-39 passphrase when importing: completely different addresses (the salt of PBKDF2 changed).</li>
+<li>Add a second account: it's the same path with the last index +1.</li>
+<li>Look at the address in Etherscan vs the wallet: compare the capital letters.</li>
+</ul>
+</section>
+</main>
+<script src="script.js"></script>
+</body>
+</html>
