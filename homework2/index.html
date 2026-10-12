@@ -3,75 +3,99 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Homework 2 – From wallet seed to Ethereum address</title>
+<title>Homework 2 – Wallet seed to Ethereum address</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <main>
-<h1>Homework 2: From Wallet Seed to Ethereum Address</h1>
-<p class="sub">Hashing, key derivation and the cryptographic primitives behind an Ethereum wallet.</p>
+<h1>Homework 2: Wallet Seed → Ethereum Address</h1>
+<p class="sub">Seven small steps, seven different jobs. Open each step, then play with the labs further down.</p>
 
-<section id="hw2">
-<p>Click through the pipeline. Each stage has a different job, which is the whole point of not using one algorithm for everything.</p>
+<h2>The pipeline, step by step</h2>
+<details open><summary>1. Entropy <span class="mono">random bits → nothing yet</span></summary>
+<p><span class="tag">key generation</span> Everything starts with 128–256 bits from the system's secure random generator. This is the only moment a wallet really <em>generates</em> a secret. Every later step is deterministic.</p></details>
+<details><summary>2. BIP-39 <span class="mono">entropy → words → 512-bit seed</span></summary>
+<p><span class="tag">encoding</span><span class="tag">derivation</span> A short checksum is appended to the entropy and the bits are cut into 11-bit pieces, each one an index into a 2048-word list (12 words for 128 bits). Then PBKDF2-HMAC-SHA512 (2048 rounds, salt "mnemonic" + optional passphrase) turns the sentence into a 64-byte seed. The words are an encoding, the seed is a derivation.</p></details>
+<details><summary>3. BIP-32 <span class="mono">seed → tree of keys</span></summary>
+<p><span class="tag">derivation</span> HMAC-SHA512 with the key "Bitcoin seed" gives a master private key and a chain code. Each child is another HMAC of (parent key, chain code, index). From one seed you can recompute an endless tree, and a hardened index (≥ 2³¹) stops anyone from walking up the tree using public data.</p></details>
+<details><summary>4. BIP-44 <span class="mono">convention for the tree</span></summary>
+<p><span class="tag">convention</span> No new cryptography here, only an agreement on the path layout <code>m/44'/coin'/account'/change/index</code>, so a wallet from one vendor finds the same keys as one from another. Try the builder below.</p></details>
+<details><summary>5. secp256k1 <span class="mono">private k → public (x, y)</span></summary>
+<p><span class="tag">public-key crypto</span> Q = k·G on y² = x³ + 7 over a 256-bit prime field (the toy version of this is Homework 1). The 64-byte public key is what signature verification needs; the private key never leaves the wallet.</p></details>
+<details><summary>6. Keccak-256 <span class="mono">public key → 20-byte address</span></summary>
+<p><span class="tag">hashing</span> Hash the 64 raw bytes of x‖y (without the 0x04 prefix) and keep the last 20 bytes. It compresses the key and hides it until the first signed transaction.</p></details>
+<details><summary>7. EIP-55 <span class="mono">address → checksummed address</span></summary>
+<p><span class="tag">checksum</span><span class="tag">encoding</span> Hash the lowercase hex address; every letter whose matching hash nibble is ≥ 8 is written in capitals. The address itself is unchanged, the casing is the checksum.</p></details>
+
+<h2>Lab 1 – BIP-44 path builder</h2>
 <div class="card">
- <div class="stages" id="stages"></div>
- <div id="stageInfo" style="margin-top:10px"></div>
+ <div class="row">
+  <label>coin <select id="coin"><option value="60">60 – Ethereum</option><option value="0">0 – Bitcoin</option><option value="61">61 – Ethereum Classic</option></select></label>
+  <label>account <input id="acct" type="number" min="0" value="0" style="width:70px"></label>
+  <label>change <select id="chg"><option>0</option><option>1</option></select></label>
+  <label>index <input id="idx" type="number" min="0" value="0" style="width:70px"></label>
+ </div>
+ <p class="key mono" id="pathOut"></p>
+ <ul id="pathWhy"></ul>
+ <p class="mute">The first three levels are hardened (the apostrophe), the last two are not.</p>
 </div>
 
-<h3>Terms I had to keep apart</h3>
-<table>
-<tr><td><b>Key generation</b></td><td>Creating fresh secret randomness (the entropy behind the mnemonic). Only this step needs a good random source.</td></tr>
-<tr><td><b>Key derivation</b></td><td>Deterministically computing keys from something that already exists (seed → child keys). Same input, same output, always.</td></tr>
-<tr><td><b>Public-key crypto</b></td><td>secp256k1: a pair (private k, public Q = kG) with a one-way link; used for signatures.</td></tr>
-<tr><td><b>Hashing</b></td><td>Keccak-256: fixed-size fingerprint, no key, one-way, avalanche behaviour.</td></tr>
-<tr><td><b>Checksum</b></td><td>EIP-55: extra redundancy to <em>detect typos</em>; not secret and not a security measure against attackers.</td></tr>
-<tr><td><b>Encoding</b></td><td>Just a representation of bytes (hex, word lists, letter case). Reversible, no secrecy at all.</td></tr>
-</table>
-
-<h2>Try the primitives</h2>
+<h2>Lab 2 – Keccak-256 vs SHA3-256, and the avalanche effect</h2>
 <div class="card">
- <h3 style="margin-top:0">Keccak-256 vs SHA3-256 + avalanche</h3>
  <input type="text" id="msg" value="hello ethereum">
+ <div class="row"><span id="flipLbl" class="mono"></span><input type="range" id="flip" min="0" max="100" value="0" style="flex:1;min-width:140px"></div>
  <pre id="hashes"></pre>
- <p class="mute">Same permutation, same input, different padding byte (0x01 for Keccak, 0x06 for NIST SHA-3), so the digests are unrelated. The avalanche line flips one bit of the first input byte.</p>
+ <div class="bits" id="bits"></div>
+ <p id="avl" class="mono"></p>
+ <p class="mute">Each square is one of the 256 output bits; orange means it changed after flipping one input bit.</p>
 </div>
+
+<h2>Lab 3 – EIP-55 checksum</h2>
 <div class="card">
- <h3 style="margin-top:0">EIP-55 checksum</h3>
- <p class="mute">Paste a 40-hex-character address (the default is the example from the EIP). Letters become uppercase when the matching hex digit of keccak256(lowercase address) is ≥ 8.</p>
  <input type="text" id="addr" value="0x5aaeb6053f3e94c9b9a09f33669435e7ef1beaed">
+ <div class="row"><button class="btn" id="typo">Introduce a typo</button><button class="btn" id="fix">Reset (all lowercase)</button><button class="btn pri" id="many">Test 1000 typos</button></div>
  <pre id="eip"></pre>
+ <p id="manyOut" class="mono"></p>
+ <p class="mute">Lowercase input has no checksum. Paste a mixed-case address (or the "expected" line) and then change one letter.</p>
 </div>
 
-<h2>Historical context</h2>
+<h2>Where this sits in time</h2>
 <ul class="tl">
-<li><b>1977 – RSA.</b> First practical public-key system.</li>
-<li><b>2001 – SHA-2 / SHA-512.</b> Standardised by NIST; BIP-39 later uses it inside HMAC/PBKDF2.</li>
-<li><b>2012 – BIP-32.</b> Hierarchical deterministic wallets: one seed, a tree of keys.</li>
-<li><b>2013 – BIP-39.</b> Mnemonic words that encode the seed.</li>
-<li><b>2014 – BIP-44.</b> Standard paths for multi-account, multi-coin wallets (<code>m/44'/60'/0'/0/0</code> for Ethereum).</li>
-<li><b>2015 – SHA-3.</b> NIST standardises Keccak (the winner of a 2012 competition). Ethereum was already using the pre-standard Keccak.</li>
-<li><b>2016 – EIP-55.</b> Mixed-case checksum for addresses.</li>
+<li><b>1977</b> – RSA, the first practical public-key scheme</li>
+<li><b>2001</b> – SHA-2 / SHA-512 standardised (used inside BIP-39 and BIP-32)</li>
+<li><b>2012</b> – BIP-32, hierarchical deterministic wallets</li>
+<li><b>2013</b> – BIP-39, mnemonic sentences</li>
+<li><b>2014</b> – BIP-44, multi-account path standard</li>
+<li><b>2015</b> – SHA-3 standardised by NIST, based on Keccak</li>
+<li><b>2016</b> – EIP-55, mixed-case address checksum</li>
 </ul>
-<p><b>SHA-2 vs Keccak/SHA-3.</b> SHA-2 is a Merkle–Damgård design (compression function chained over blocks); SHA-3 is a sponge built on the Keccak-f[1600] permutation, so it is a completely different internal structure chosen partly as a "plan B" if SHA-2 ever broke. Ethereum's Keccak-256 predates the final standard: NIST changed the padding/domain-separation bytes, so Keccak-256 ≠ SHA3-256 even though the core is identical (the demo above shows it).</p>
 
-<h2>Why so many different techniques?</h2>
-<p>Each step solves a different problem and needs different properties:</p>
-<ul>
-<li><b>BIP-39/32/44</b> – key management: back up 12–24 words instead of many keys, derive an unlimited, reproducible tree of keys in a standard layout so wallets are interchangeable.</li>
-<li><b>secp256k1</b> – a one-way relation between private and public key that also allows signatures others can verify without learning the secret. A hash alone can't do that.</li>
-<li><b>Keccak-256</b> – compresses a 64-byte public key into a 20-byte identifier and hides the raw public key until the first transaction.</li>
-<li><b>EIP-55</b> – catches typos at essentially no cost, without changing the address format.</li>
-</ul>
-<p>Statistical angle: the seed, private key and Keccak output should all look uniformly random; the Keccak step should show avalanche; EIP-55 is deliberately pseudo-random as well, so a single wrong letter breaks the pattern with probability about 1 − 2⁻ᴸ (L = number of letters, ~15 on average → ≈ 99.99%).</p>
+<h2>SHA-2 vs Keccak / SHA-3</h2>
+<table>
+<tr><th></th><th>SHA-2 / SHA-512</th><th>Keccak-256 (Ethereum)</th><th>SHA3-256 (NIST)</th></tr>
+<tr><td>Design</td><td>Merkle–Damgård, compression function</td><td>sponge on Keccak-f[1600]</td><td>same sponge</td></tr>
+<tr><td>Padding byte</td><td>–</td><td>0x01</td><td>0x06</td></tr>
+<tr><td>Used for</td><td>BIP-39 / BIP-32 (via HMAC)</td><td>addresses, EIP-55</td><td>not used by Ethereum</td></tr>
+</table>
+<p>Ethereum adopted Keccak before NIST finished the standard. NIST then changed the domain-separation bytes, which is why the two functions give different digests for the same input (Lab 2 shows it).</p>
+
+<h2>Why not one algorithm for everything?</h2>
+<table>
+<tr><th>Piece</th><th>Problem it solves</th><th>Without it</th></tr>
+<tr><td>BIP-39 / 32 / 44</td><td>one backup, reproducible keys, standard layout</td><td>a file of random keys per account, wallets incompatible</td></tr>
+<tr><td>secp256k1</td><td>signatures that anyone can verify without the secret</td><td>nobody could prove they own an address</td></tr>
+<tr><td>Keccak-256</td><td>short, fixed-size, one-way identifier</td><td>64-byte public keys everywhere, exposed early</td></tr>
+<tr><td>EIP-55</td><td>typo detection</td><td>one wrong character sends funds to nowhere</td></tr>
+</table>
+<p><b>Statistical side.</b> Entropy, seed, private key and hash outputs should all look uniform. Only the hash is expected to show avalanche (Lab 2). The EIP-55 pattern is pseudo-random too, so a single typo survives only with probability about 2⁻ᴸ, where L is the number of letters in the address (about 15 on average). Lab 3 puts a number on that.</p>
 
 <h3>Wallet experiment (to do by hand)</h3>
 <ul>
-<li>Create a wallet in MetaMask, import the same phrase into Rabby: same address at index 0 → the derivation is standard.</li>
-<li>Add a BIP-39 passphrase when importing: completely different addresses (the salt of PBKDF2 changed).</li>
-<li>Add a second account: it's the same path with the last index +1.</li>
-<li>Look at the address in Etherscan vs the wallet: compare the capital letters.</li>
+<li>Import the same phrase in MetaMask and Rabby and compare the first address.</li>
+<li>Add a BIP-39 passphrase on import: every address changes.</li>
+<li>Create a second account and compare it with index 1 in the path builder.</li>
+<li>Paste an address from Etherscan into Lab 3 to check its capitals.</li>
 </ul>
-</section>
 </main>
 <script src="script.js"></script>
 </body>
