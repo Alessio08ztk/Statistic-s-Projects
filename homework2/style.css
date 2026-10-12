@@ -32,3 +32,12 @@ ul.tl{list-style:none;padding:0;border-left:2px solid var(--line);margin-left:6p
 ul.tl li:before{content:"";position:absolute;left:-6px;top:9px;width:10px;height:10px;border-radius:50%;background:var(--acc)}
 .diff{color:var(--acc);font-weight:bold}
 .mute{color:var(--mute)}
+details{background:var(--card);border:1px solid var(--line);border-radius:8px;margin:8px 0;padding:8px 14px}
+summary{cursor:pointer;font-weight:bold}summary .mono{color:var(--acc2);margin-left:6px;font-weight:normal}
+details p{margin:.5em 0}
+.bits{display:grid;grid-template-columns:repeat(32,1fr);gap:2px;margin:8px 0}
+.bits i{aspect-ratio:1;background:var(--soft);border:1px solid var(--line)}
+.bits i.d{background:var(--acc);border-color:var(--acc)}
+.ok{color:#2e7d32;font-weight:bold}.bad{color:var(--acc);font-weight:bold}
+.up{color:var(--acc);font-weight:bold}
+label{display:inline-block}
