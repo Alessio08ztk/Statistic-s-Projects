@@ -1,102 +1,95 @@
 const $=s=>document.querySelector(s);
 const pop=n=>{let c=0;while(n){c+=n&1;n>>=1}return c};
 
-/* ---------- toy curve: y^2 = x^3 + 7 (mod 17) ---------- */
-const P=17,mod=a=>((a%P)+P)%P;
-const inv=a=>{a=mod(a);let r=1;for(let e=P-2,b=a;e;e>>=1,b=b*b%P)if(e&1)r=r*b%P;return r};
-const pts=[];for(let x=0;x<P;x++)for(let y=0;y<P;y++)if(mod(y*y-x*x*x-7)===0)pts.push([x,y]);
-const fmt=p=>p?`(${p[0]}, ${p[1]})`:'O (infinity)';
-function add(p,q){
- if(!p)return[q,'O + Q = Q'];
- if(!q)return[p,'P + O = P'];
- if(p[0]===q[0]&&mod(p[1]+q[1])===0)return[null,'vertical line: P + (−P) = O'];
- let l,kind;
- if(p[0]===q[0]){l=mod(3*p[0]*p[0]*inv(2*p[1]));kind='tangent'}
- else{l=mod((q[1]-p[1])*inv(q[0]-p[0]));kind='chord'}
- const x=mod(l*l-p[0]-q[0]),y=mod(l*(p[0]-x)-p[1]);
- return[[x,y],`${kind}, slope λ = ${l}`];
-}
-function order(G){let Q=G,n=1;while(Q){Q=add(Q,G)[0];n++}return n}
-function mults(G,k){const out=[{n:1,pt:G,note:'G itself'}];
- for(let n=2;n<=k;n++){const[pt,note]=add(out[n-2].pt,G);out.push({n,pt,note:`${n-1}G + G: ${note}`})}
+/* ---------- Keccak (BigInt, compact) ---------- */
+const M=(1n<<64n)-1n,rotl=(x,n)=>n?((x<<BigInt(n))|(x>>BigInt(64-n)))&M:x;
+function lf(t){let R=1;for(let i=0;i<t%255;i++){R<<=1;if(R&256)R^=0x171}return R&1}
+const RC=[...Array(24)].map((_,r)=>{let c=0n;for(let j=0;j<7;j++)if(lf(j+7*r))c|=1n<<BigInt((1<<j)-1);return c});
+function perm(A){
+ for(let r=0;r<24;r++){
+  const C=[0,1,2,3,4].map(x=>A[x]^A[x+5]^A[x+10]^A[x+15]^A[x+20]);
+  for(let x=0;x<5;x++){const D=C[(x+4)%5]^rotl(C[(x+1)%5],1);for(let y=0;y<25;y+=5)A[x+y]^=D}
+  let x=1,y=0,cur=A[1];
+  for(let t=0;t<24;t++){[x,y]=[y,(2*x+3*y)%5];const tmp=A[x+5*y];A[x+5*y]=rotl(cur,((t+1)*(t+2)/2)%64);cur=tmp}
+  for(let y=0;y<25;y+=5){const T=A.slice(y,y+5);for(let x=0;x<5;x++)A[y+x]=T[x]^((~T[(x+1)%5]&T[(x+2)%5])&M)}
+  A[0]^=RC[r];
+ }}
+function sponge(bytes,dom){
+ const rate=136,buf=new Uint8Array((Math.floor(bytes.length/rate)+1)*rate);
+ buf.set(bytes);buf[bytes.length]^=dom;buf[buf.length-1]^=0x80;
+ const A=Array(25).fill(0n);
+ for(let o=0;o<buf.length;o+=rate){
+  for(let i=0;i<17;i++){let v=0n;for(let b=7;b>=0;b--)v=(v<<8n)|BigInt(buf[o+i*8+b]);A[i]^=v}
+  perm(A)}
+ const out=[];for(let i=0;i<4;i++)for(let b=0;b<8;b++)out.push(Number((A[i]>>BigInt(8*b))&255n));
  return out}
-function dblAdd(G,k){let R=null,m=0,log=[`k = ${k} = ${k.toString(2)} in binary`];
- for(const b of k.toString(2)){
-  R=add(R,R)[0];m*=2;if(m)log.push(`double → ${m}G = ${fmt(R)}`);
-  if(b==='1'){R=add(R,G)[0];m+=1;log.push(`add G  → ${m}G = ${fmt(R)}`)}}
- return{R,log}}
+const keccak256=b=>sponge(b,0x01),sha3_256=b=>sponge(b,0x06);
+const hex=b=>b.map(v=>v.toString(16).padStart(2,'0')).join('');
+const enc=s=>new TextEncoder().encode(s);
 
-const sel=$('#g');pts.forEach((p,i)=>sel.add(new Option(fmt(p),i)));sel.value=pts.findIndex(p=>p[0]==1&&p[1]==5);
-let G,seq=[],shown=0,timer=null;
 
-function setup(){
- G=pts[+sel.value];
- const k=Math.max(1,Math.min(200,parseInt($('#k').value)||1));
- seq=mults(G,k);shown=0;halt();
- const n=order(G);$('#ord').textContent=`order of G = ${n} (so kG repeats every ${n})`;
- const d=dblAdd(G,k);$('#dbl').textContent=d.log.join('\n')+`\n\nresult: ${fmt(d.R)}  ${fmt(d.R)===fmt(seq[k-1].pt)?'(matches the slow method)':'(MISMATCH!)'}`;
- draw();stats();
+/* ---------- BIP-44 path builder ---------- */
+function path(){
+ const coin=$('#coin').value,acct=Math.max(0,+$('#acct').value||0),chg=$('#chg').value,idx=Math.max(0,+$('#idx').value||0);
+ $('#pathOut').textContent=`m / 44' / ${coin}' / ${acct}' / ${chg} / ${idx}`;
+ $('#pathWhy').innerHTML=[
+  `<b>m</b> – master key from the BIP-32 root (HMAC-SHA512 of the seed)`,
+  `<b>44'</b> – "purpose": this tree follows BIP-44`,
+  `<b>${coin}'</b> – coin type (SLIP-44 registry); 60 is Ethereum`,
+  `<b>${acct}'</b> – account, lets you keep separate "wallets" under one seed`,
+  `<b>${chg}</b> – ${chg==0?'external chain (receiving addresses). Ethereum wallets only ever use 0':'internal chain (change addresses, mostly a Bitcoin thing)'}`,
+  `<b>${idx}</b> – address index; "Account 2" in MetaMask is just index ${idx+1} here`
+ ].map(s=>`<li>${s}</li>`).join('');
 }
-function halt(){clearInterval(timer);timer=null;$('#play').textContent='Play (slow)'}
-function draw(){
- const cv=$('#cv'),c=cv.getContext('2d'),W=cv.width,m=30,s=(W-2*m)/(P-1);
- const css=getComputedStyle(document.documentElement),col=n=>css.getPropertyValue(n).trim();
- const X=x=>m+x*s,Y=y=>W-m-y*s;
- c.clearRect(0,0,W,W);c.font='10px monospace';c.fillStyle=col('--mute');c.strokeStyle=col('--line');
- for(let i=0;i<P;i++){c.beginPath();c.moveTo(X(i),Y(0));c.lineTo(X(i),Y(P-1));c.moveTo(X(0),Y(i));c.lineTo(X(P-1),Y(i));c.stroke();
-  c.fillText(i,X(i)-3,W-m+14);c.fillText(i,m-18,Y(i)+3)}
- pts.forEach(p=>{c.beginPath();c.arc(X(p[0]),Y(p[1]),3,0,7);c.fill()});
- c.strokeStyle=col('--acc');c.fillStyle=col('--acc');c.lineWidth=1.5;
- let prev=null;
- for(let i=0;i<shown;i++){const p=seq[i].pt;if(!p)break;
-  if(prev){c.beginPath();c.moveTo(X(prev[0]),Y(prev[1]));c.lineTo(X(p[0]),Y(p[1]));c.stroke()}
-  c.beginPath();c.arc(X(p[0]),Y(p[1]),6,0,7);c.fill();
-  c.fillStyle=col('--ink');c.font='bold 11px monospace';c.fillText(i?`${i+1}G`:'G',X(p[0])+8,Y(p[1])-6);c.fillStyle=col('--acc');prev=p}
- c.lineWidth=1;
- $('#tab tbody').innerHTML=seq.slice(0,shown).map(r=>`<tr><td>${r.n}</td><td>${fmt(r.pt)}</td><td>${r.note}</td></tr>`).join('');
- const last=seq[seq.length-1];
- $('#res').textContent=shown===seq.length?`TOY PUBLIC KEY  Q = ${last.n}G = ${fmt(last.pt)}`:'';
+['coin','acct','chg','idx'].forEach(i=>$('#'+i).oninput=path);
+
+/* ---------- hash lab ---------- */
+function hashLab(){
+ const b=enc($('#msg').value),nbits=b.length*8;
+ $('#flip').max=Math.max(nbits-1,0);
+ const pos=Math.min(+$('#flip').value,Math.max(nbits-1,0));
+ $('#flipLbl').textContent=nbits?`flip input bit #${pos} (of ${nbits})`:'(type something)';
+ const k=keccak256(b);
+ $('#hashes').textContent=`Keccak-256 : ${hex(k)}\nSHA3-256   : ${hex(sha3_256(b))}\n`+(hex(k)===hex(sha3_256(b))?'same':'different, only the padding byte changed (0x01 vs 0x06)');
+ if(!nbits){$('#bits').innerHTML='';$('#avl').textContent='';return}
+ const b2=b.slice();b2[pos>>3]^=1<<(pos&7);
+ const k2=keccak256(b2);let d=0,cells='';
+ for(let i=0;i<32;i++)for(let j=0;j<8;j++){const x=(k[i]^k2[i])>>j&1;d+=x;cells+=`<i class="${x?'d':''}"></i>`}
+ $('#bits').innerHTML=cells;
+ $('#avl').textContent=`${d} of 256 output bits changed (${(d/2.56).toFixed(1)}%). A good hash sits around 50% whichever bit you flip.`;
 }
-function step(){if(shown<seq.length){shown++;draw()}else halt()}
-$('#step').onclick=()=>{halt();step()};
-$('#all').onclick=()=>{halt();shown=seq.length;draw()};
-$('#reset').onclick=()=>{halt();shown=0;draw()};
-$('#play').onclick=()=>{if(timer)return halt();$('#play').textContent='Pause';if(shown>=seq.length)shown=0;timer=setInterval(step,800)};
-$('#k').oninput=setup;sel.onchange=setup;
+$('#msg').oninput=hashLab;$('#flip').oninput=hashLab;
 
-/* ---------- statistics over all k ---------- */
-function pearson(a,b){const n=a.length,ma=a.reduce((s,v)=>s+v)/n,mb=b.reduce((s,v)=>s+v)/n;
- let sab=0,sa=0,sb=0;for(let i=0;i<n;i++){sab+=(a[i]-ma)*(b[i]-mb);sa+=(a[i]-ma)**2;sb+=(b[i]-mb)**2}
- return sa&&sb?sab/Math.sqrt(sa*sb):0}
-function hist(cnt,name){const mx=Math.max(...cnt,1);
- return`<b>${name}</b><div class="hist">${cnt.map((c,v)=>`<div title="${v}: ${c}"><i style="height:${75*c/mx}%"></i><b>${v}</b></div>`).join('')}</div>`}
-function stats(){
- const n=order(G),all=mults(G,n-1).map(r=>r.pt),ks=all.map((_,i)=>i+1);
- const xs=all.map(p=>p[0]),ys=all.map(p=>p[1]);
- const cx=Array(P).fill(0),cy=Array(P).fill(0);xs.forEach(v=>cx[v]++);ys.forEach(v=>cy[v]++);
- const bits=a=>[4,3,2,1,0].map(b=>(a.filter(v=>v>>b&1).length/a.length).toFixed(2)).join('  ');
- // avalanche: flip one bit of k, count differing bits in (x,y) (10 bits)
- const hd=(p,q)=>pop(p[0]^q[0])+pop(p[1]^q[1]);
- let tot=0,cnt=0;const nb=Math.ceil(Math.log2(n));
- for(let k=1;k<n;k++)for(let b=0;b<nb;b++){const k2=k^(1<<b);if(k2>=1&&k2<n){tot+=hd(all[k-1],all[k2-1]);cnt++}}
- let rt=0,rc=0;for(let i=0;i<all.length;i++)for(let j=0;j<all.length;j++)if(i!==j){rt+=hd(all[i],all[j]);rc++}
- const mirror=all.filter((p,i)=>i+1<n-(i+1)&&all[n-(i+1)-1][0]===p[0]).length;
- $('#stats').innerHTML=`<p>G = ${fmt(G)}, order ${n}, so ${n-1} points.</p>`+
- hist(cx,'frequency of x values')+hist(cy,'frequency of y values')+
- `<pre>fraction of 1s per bit (MSB → LSB)
-x: ${bits(xs)}
-y: ${bits(ys)}
-
-correlation k ↔ x: ${pearson(ks,xs).toFixed(3)}
-correlation k ↔ y: ${pearson(ks,ys).toFixed(3)}
-
-avalanche (flip 1 bit of k, Hamming distance of (x,y) over 10 bits):
-  measured mean : ${(tot/cnt).toFixed(2)}
-  random pairs  : ${(rt/rc).toFixed(2)}   (ideal ≈ 5)
-
-mirror pairs (kG and (n−k)G share x): ${mirror} of ${Math.floor((n-1)/2)} pairs</pre>
- <p class="mute">Reading: values are not flat across 0–16 because only points on the curve exist (about half of the x values have a y at all), and each x appears at most twice (±y). Correlation with k is small but not zero, which is expected for such a tiny sample.</p>`;
+/* ---------- EIP-55 lab ---------- */
+function checksum(raw){const h=hex(keccak256(enc(raw)));return[...raw].map((c,i)=>parseInt(h[i],16)>=8?c.toUpperCase():c).join('')}
+function eipCheck(){
+ const t=$('#addr').value.trim().replace(/^0x/i,'');
+ const out=$('#eip');
+ if(!/^[0-9a-fA-F]{40}$/.test(t)){out.textContent='Needs 40 hex characters.';return}
+ const good=checksum(t.toLowerCase());
+ let verdict;
+ if(t===t.toLowerCase()||t===t.toUpperCase())verdict='<span class="mute">no checksum present (all one case), so nothing can be checked</span>';
+ else verdict=t===good?'<span class="ok">checksum valid</span>':'<span class="bad">checksum INVALID – probably a typo</span>';
+ out.innerHTML=`expected: 0x${[...good].map((c,i)=>c!==t[i]&&t[i]!==undefined&&c.toLowerCase()===t[i].toLowerCase()?`<span class="up">${c}</span>`:c).join('')}\nyou have: 0x${t}\n${verdict}`;
 }
+$('#addr').oninput=eipCheck;
+$('#typo').onclick=()=>{
+ const g=checksum($('#addr').value.trim().replace(/^0x/i,'').toLowerCase());
+ const i=Math.floor(Math.random()*40),hx='0123456789abcdef';let c;
+ do{c=hx[Math.floor(Math.random()*16)]}while(c===g[i].toLowerCase());
+ $('#addr').value='0x'+g.slice(0,i)+(/[a-f]/i.test(g[i])?c.toUpperCase():c)+g.slice(i+1);eipCheck();
+};
+$('#fix').onclick=()=>{$('#addr').value='0x5aaeb6053f3e94c9b9a09f33669435e7ef1beaed';eipCheck()};
+$('#many').onclick=()=>{
+ const g=checksum($('#addr').value.trim().replace(/^0x/i,'').toLowerCase());
+ let caught=0,N=1000;
+ for(let n=0;n<N;n++){
+  const i=Math.floor(Math.random()*40);let c;
+  do{c='0123456789abcdef'[Math.floor(Math.random()*16)]}while(c===g[i].toLowerCase());
+  const t=g.slice(0,i)+(/[a-f]/i.test(g[i])?c.toUpperCase():c)+g.slice(i+1);
+  if(t!==checksum(t.toLowerCase()))caught++;
+ }
+ $('#manyOut').textContent=`${caught} of ${N} random single-character typos were caught (${(caught/N*100).toFixed(2)}%).`;
+};
 
-
-setup();
+path();hashLab();eipCheck();
