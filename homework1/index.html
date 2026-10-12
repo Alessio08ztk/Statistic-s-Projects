@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Homework 1 – Private key to public key (toy curve)</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+<h1>Homework 1: Private Key → Public Key</h1>
+<p class="sub">Elliptic-curve scalar multiplication on a toy curve, Q = kG. Runs entirely in the browser.</p>
+
+<section id="hw1">
+<p>The curve is <code>y² = x³ + 7 (mod 17)</code>, the same shape as secp256k1 but tiny. A public key is just the private number <code>k</code> multiplied with a base point <code>G</code>: <code>Q = kG</code>. "Multiplying" means adding G to itself k times, using the chord-and-tangent rule.</p>
+
+<div class="card">
+ <div class="row">
+  <label>Private key k <input id="k" type="number" min="1" max="200" value="6" style="width:80px"></label>
+  <label>Base point G <select id="g"></select></label>
+  <span class="mute" id="ord"></span>
+ </div>
+ <div class="row">
+  <button class="btn pri" id="step">Step</button><button class="btn" id="play">Play (slow)</button>
+  <button class="btn" id="all">Show all</button><button class="btn" id="reset">Reset</button>
+ </div>
+ <div class="wide"><canvas id="cv" width="420" height="420"></canvas></div>
+ <div class="wide"><table id="tab"><thead><tr><th>n</th><th>nG</th><th>how it was computed</th></tr></thead><tbody></tbody></table></div>
+ <p id="res" class="key"></p>
+ <h3>Faster: double-and-add</h3>
+ <p class="mute">Same result in about log₂(k) doublings instead of k−1 additions. Real keys are ~256 bits, so the slow way is impossible.</p>
+ <pre id="dbl"></pre>
+</div>
+
+<h2>Statistical exploration</h2>
+<p>Below I run <em>every</em> k from 1 up to the order of G (so the point at infinity is left out) with the currently selected G, and look at what comes out.</p>
+<div class="card" id="stats"></div>
+
+<h2>Discussion</h2>
+<p><b>What is actually meaningful for a one-way function on a curve?</b></p>
+<ul>
+<li><b>Uniformity</b> – yes, in the sense that the points kG should look spread over the group. Here every point of the subgroup is hit exactly once, which is a perfect "permutation", but also means the map is trivially reversible by a table lookup because the group is small. With 2²⁵⁶ elements the table is impossible.</li>
+<li><b>Hardness</b> – the real security argument is the ECDLP, not any statistical test. A curve can pass every histogram and still be broken (this toy one is).</li>
+<li><b>Structure</b> – note that <code>(a+b)G = aG + bG</code> and that <code>kG</code> and <code>(n−k)G</code> share the same x (they are mirror images). A hash is designed to <em>not</em> have algebraic structure like that, so it's a feature of the curve, not a flaw.</li>
+</ul>
+<p><b>Hash-specific properties:</b> the avalanche effect (flip one input bit, about half of the output bits change), bit independence and collision resistance are goals of hash functions. In the table above the avalanche numbers come out near "random" only because the space is tiny; on a real curve, k and k+1 give points that differ by one addition of G, which is perfectly predictable if you know the points — you just can't recover k from them. Also, a hash takes arbitrary-length input and has fixed output size, while scalar multiplication does not compress anything.</p>
+</section>
+</main>
+<script src="script.js"></script>
+</body>
+</html>
