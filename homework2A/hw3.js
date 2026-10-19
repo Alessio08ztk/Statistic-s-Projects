@@ -89,8 +89,9 @@ function stats(){
 $('#stBtn').onclick=stats;
 
 /* ================= statistical attack on Caesar ================= */
-const CORPUS=`Insert Here yout text`;
 const TEST=`The harbor was quiet when the last ferry left the pier, and the fishermen were already folding their nets for the night. Nobody noticed the young woman who stood near the lighthouse with a small leather bag and a letter she had been carrying for three days. She read it once more, put it back into her pocket, and walked slowly along the wall toward the market, where the lamps were still burning and the smell of bread and salt filled the narrow street. A dog followed her for a while and then lost interest. By the time she reached the old square the church bell had begun to ring, and she knew that there was no way back now, because the decision had been made long before she came to the sea.`;
+const needCorpus=()=>letters($('#corpus').value).length<300;
+const NOCORPUS='Paste an English reference text in the first box (a few hundred letters at least).';
 function model(){
  const t=letters($('#corpus').value),uni=Array(26).fill(.5),bi=Array(676).fill(1);
  for(let i=0;i<t.length;i++){const a=t.charCodeAt(i)-65;uni[a]++;if(i+1<t.length)bi[a*26+t.charCodeAt(i+1)-65]++}
@@ -110,6 +111,7 @@ function crack(ct,M){
 let sampleCT='',sampleKey=0;
 $('#fill').onclick=()=>{sampleKey=1+Math.floor(Math.random()*25);sampleCT=shift(TEST,sampleKey);$('#ct').value=sampleCT;$('#crackOut').innerHTML=''};
 $('#crack').onclick=()=>{
+ if(needCorpus()){$('#crackOut').textContent=NOCORPUS;return}
  const ct=$('#ct').value;if(letters(ct).length<2){$('#crackOut').textContent='Need some ciphertext.';return}
  const r=crack(ct,model());
  const truth=ct===sampleCT?`<p>True key (hidden until now): <b>${sampleKey}</b></p>`:'';
@@ -118,6 +120,7 @@ $('#crack').onclick=()=>{
  r.rows.map(x=>`<tr class="${x.s===r.byChi?'best':''}"><td>${x.s}</td><td class="num">${x.chi.toFixed(1)}</td><td class="num">${x.bi.toFixed(1)}</td><td class="mono">${esc(shift(ct,-x.s).slice(0,50))}</td></tr>`).join('')+'</table></div>';
 };
 $('#exp').onclick=()=>{
+ if(needCorpus()){$('#expOut').textContent=NOCORPUS;return}
  const M=model(),T=letters(TEST),T_=200,lens=[5,10,20,40,80,160,320];let html='';
  for(const n of lens){let a=0,b=0,c=0;
   for(let t=0;t<T_;t++){
@@ -148,6 +151,5 @@ $('#bsgs').onclick=()=>{
 };
 
 /* ================= init ================= */
-$('#corpus').value=CORPUS;
 $('#gx').textContent=`p = ${p}, G = ${fp(G)}`;
 newPair();caesar();
