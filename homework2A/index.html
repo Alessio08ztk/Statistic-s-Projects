@@ -12,7 +12,7 @@
 <p class="sub">The same message goes through both schemes, then we break both of them. Everything runs in the browser.</p>
 
 <div class="card">
- <label>Message (used by both schemes)<input type="text" id="msg" value="Meet me at the old bridge at midnight"></label>
+ <label>Message (used by both schemes)<input type="text" id="msg" placeholder="message to encrypt" value="Meet me at the old bridge at midnight"></label>
 </div>
 
 <h2>1. Toy ECC encryption</h2>
@@ -38,7 +38,7 @@
 
 <h2>2. Caesar cipher</h2>
 <div class="card">
- <label>shift (the key, 0–25) <input type="number" id="cs" value="3" style="width:80px"></label>
+ <label>shift (the key, 0–25) <input type="number" id="cs" placeholder="0–25" value="3" style="width:80px"></label>
  <pre id="csOut"></pre>
 </div>
 
@@ -61,8 +61,8 @@
 <h2>4. Statistical cryptanalysis of Caesar</h2>
 <p>Idea: for each of the 26 possible shifts, undo it and ask how much the result looks like English. "Looks like English" is measured against a reference corpus (first box). Three ways to score a candidate are compared: assuming the most frequent letter is E; χ² between the letter counts and the corpus frequencies; and the likelihood of the candidate under a bigram (letter pair) model.</p>
 <div class="card">
- <label>Reference corpus (English, used to learn the statistics)<textarea id="corpus"></textarea></label>
- <label>Ciphertext<textarea id="ct" placeholder="paste something or press the button"></textarea></label>
+ <label>Reference corpus (English, used to learn the statistics)<textarea id="corpus" placeholder="English reference text"></textarea></label>
+ <label>Ciphertext<textarea id="ct" placeholder="ciphertext"></textarea></label>
  <div class="row"><button class="btn" id="fill">Encrypt a sample with a random key</button><button class="btn pri" id="crack">Crack it</button><button class="btn" id="exp">Test different lengths</button></div>
  <div id="crackOut"></div>
  <div id="expOut"></div>
