@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Homework 3 – Toy ECC encryption, Caesar cipher and attacks</title>
+<link rel="stylesheet" href="hw3.css?v=3">
+</head>
+<body>
+<main>
+<h1>Homework 3: Toy ECC Encryption, Caesar Cipher and Two Attacks</h1>
+<p class="sub">The same message goes through both schemes, then we break both of them. Everything runs in the browser.</p>
+
+<div class="card">
+ <label>Message (used by both schemes)<input type="text" id="msg" value="Meet me at the old bridge at midnight"></label>
+</div>
+
+<h2>1. Toy ECC encryption</h2>
+<p>This is the scheme from the previous homework turned into an actual cipher: the curve is still <code>y² = x³ + 7</code> (the secp256k1 equation), but over a small 31-bit prime, and the private key is deliberately limited to a few bits. The construction is ElGamal / ECIES-like: instead of squeezing letters into curve points, the shared point seeds a keystream.</p>
+<ol>
+<li><b>Key generation.</b> Bob picks a secret integer <code>d</code> (private key) and publishes <code>Q = dG</code> (public key).</li>
+<li><b>Encryption (Alice).</b> She picks a fresh random <code>r</code>, computes <code>C1 = rG</code> and the shared secret <code>S = rQ</code>, turns S into a keystream and XORs it with the message.</li>
+<li><b>Decryption (Bob).</b> He computes <code>d·C1 = d·r·G = r·Q = S</code>, rebuilds the same keystream and XORs again.</li>
+</ol>
+<p><b>Roles of the keys:</b> <code>d</code> never leaves Bob; <code>Q</code> and <code>C1</code> are public; <code>r</code> is a one-time secret of Alice; <code>S</code> is the secret that only Alice (via r) and Bob (via d) can compute.</p>
+<div class="card">
+ <p class="mono mute" id="gx"></p>
+ <div class="row">
+  <label>private key size <select id="bits"><option value="8">8 bits</option><option value="12" selected>12 bits</option><option value="16">16 bits</option><option value="20">20 bits</option></select></label>
+  <button class="btn" id="gen">New key pair</button>
+  <button class="btn pri" id="enc">Encrypt</button>
+  <button class="btn" id="dec">Decrypt</button>
+ </div>
+ <pre id="keys"></pre>
+ <ul id="eccLog"></ul>
+ <pre id="eccOut"></pre>
+</div>
+
+<h2>2. Caesar cipher</h2>
+<div class="card">
+ <label>shift (the key, 0–25) <input type="number" id="cs" value="3" style="width:80px"></label>
+ <pre id="csOut"></pre>
+</div>
+
+<h2>3. Similarities and differences</h2>
+<table>
+<tr><th></th><th>Caesar</th><th>Toy ECC scheme</th></tr>
+<tr><td>Type</td><td>symmetric: same key to encrypt and decrypt</td><td>public-key: Q encrypts, d decrypts (the XOR part is symmetric)</td></tr>
+<tr><td>Encrypt</td><td>shift every letter by k</td><td>S = rQ, keystream from S, XOR</td></tr>
+<tr><td>Decrypt</td><td>shift back by k</td><td>S = d·C1, same keystream, XOR</td></tr>
+<tr><td>Key space</td><td>25 useful keys</td><td>2<sup>bits</sup> private keys here; about 2<sup>256</sup> on real secp256k1</td></tr>
+<tr><td>Randomisation</td><td>none: same message gives same ciphertext</td><td>fresh r each time, so the same message gives different ciphertexts</td></tr>
+<tr><td>Statistics</td><td>each letter maps to one fixed letter, so the letter histogram is only rotated</td><td>XOR with a keystream flattens the byte histogram</td></tr>
+</table>
+<p>What they share: both are reversible transformations driven by a secret, and in both the decryption is the "undo" of the encryption. In the ECC scheme the heavy part is the public-key step that creates S; the actual message hiding is a stream cipher, just like Caesar is a (very weak) one with a constant keystream.</p>
+<div class="card">
+ <button class="btn pri" id="stBtn">Run statistics on a ~550-letter sample</button>
+ <div id="statOut"></div>
+</div>
+
+<h2>4. Statistical cryptanalysis of Caesar</h2>
+<p>Idea: for each of the 26 possible shifts, undo it and ask how much the result looks like English. "Looks like English" is measured against a reference corpus (first box). Three ways to score a candidate are compared: assuming the most frequent letter is E; χ² between the letter counts and the corpus frequencies; and the likelihood of the candidate under a bigram (letter pair) model.</p>
+<div class="card">
+ <label>Reference corpus (English, used to learn the statistics)<textarea id="corpus"></textarea></label>
+ <label>Ciphertext<textarea id="ct" placeholder="paste something or press the button"></textarea></label>
+ <div class="row"><button class="btn" id="fill">Encrypt a sample with a random key</button><button class="btn pri" id="crack">Crack it</button><button class="btn" id="exp">Test different lengths</button></div>
+ <div id="crackOut"></div>
+ <div id="expOut"></div>
+</div>
+<p><b>Effectiveness and limits.</b> With a few hundred letters every method is practically always right, because the 26 candidates are very different in score. With 5–20 letters the sample is too small: letter counts are noisy, several shifts look equally plausible and the guess is often wrong. The E heuristic breaks first, since in a short text the most frequent letter is often not E. Bigrams help because a short text still contains many pairs; the exhaustive approach (print all 26 candidates and read them) is also reliable if a human is in the loop. All of this assumes the language is known, the text is natural prose and the corpus matches its style (a text without E, a list of names or another language would confuse the score).</p>
+
+<h2>5. Attacking the toy ECC key</h2>
+<p>The private key only has a few bits, so we can solve <code>Q = dG</code> directly from the public key. Two options: <b>exhaustive search</b> (compute G, 2G, 3G, … until one equals Q) and <b>baby-step giant-step</b> (store jG for j up to √N, then walk Q − i·mG until it hits the table: about √N steps instead of N, at the price of memory).</p>
+<div class="card">
+ <p class="mute">Uses the key pair and the last ciphertext from section 1. Try 8, 12, 16 and 20 bits and watch the operation counts: exhaustive search doubles with every extra bit, BSGS grows only with the square root.</p>
+ <div class="row"><button class="btn" id="brute">Exhaustive search</button><button class="btn pri" id="bsgs">Baby-step giant-step</button></div>
+ <div id="atkOut"></div>
+</div>
+
+<h2>6. Discussion</h2>
+<p><b>Caesar attack vs ECC attack.</b> Against Caesar we use the <em>plaintext</em>: we need to know what the language looks like and we only need the ciphertext. The test for a correct key is statistical ("this looks like English"), and it needs enough text to work. Against the toy ECC key we use only <em>public</em> data (G and Q) and the test for a correct key is exact: kG equals Q or it doesn't. It works for a one-word message as well as for a book, because the weakness is the number of possible keys, not the message.</p>
+<p><b>Why it doesn't scale.</b> Exhaustive search costs about 2<sup>bits</sup> operations. For a real 256-bit key that is around 10<sup>77</sup>. Even the best generic algorithms (baby-step giant-step, Pollard's rho) cost about √(group order) ≈ 2<sup>128</sup> steps, which is out of reach of any realistic computer, and we know no shortcut for well-chosen curves like secp256k1. Note also that the 20-bit BSGS test above is easy only because the exponent range is tiny.</p>
+<p><b>Weaknesses of the restricted key space.</b> The tiny range of d makes brute force and BSGS trivial. Related: since the key is chosen in a very small range, any smarter search just needs the range, not the whole group.</p>
+<p><b>Weaknesses of the toy design itself (even with a big d).</b></p>
+<ul>
+<li>The prime is only 31 bits, so the whole group has about 2<sup>31</sup> points and BSGS or Pollard's rho solves the discrete log in roughly 2<sup>16</sup> steps no matter how large d is.</li>
+<li>The keystream is xorshift32 seeded with 32 bits of S: the effective secret is at most 2<sup>32</sup> and the generator is linear and invertible, so a known plaintext fragment reveals the whole stream.</li>
+<li>No authentication: flipping a ciphertext bit flips the same plaintext bit, so messages can be tampered with.</li>
+<li>If r were ever reused, XORing two ciphertexts gives m₁ ⊕ m₂ (the classic two-time pad).</li>
+</ul>
+</main>
+<script src="hw3.js?v=3"></script>
+</body>
+</html>
