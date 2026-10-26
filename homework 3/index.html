@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Homework 4 – Penetration scores: LLN and CLT</title>
-<link rel="stylesheet" href="hw4.css?v=4">
+<title>Homework 3 – Penetration scores: LLN and CLT</title>
+<link rel="stylesheet" href="hw3.css?v=3">
 </head>
 <body>
 <main>
-<h1>Homework 4: Penetration Scores, LLN and CLT</h1>
+<h1>Homework 3: Penetration Scores, LLN and CLT</h1>
 <p class="sub">n systems, m attackers, and what happens to the aggregate score when n grows. Everything is simulated in the browser.</p>
 
 <h2>The model</h2>
@@ -60,6 +60,6 @@
 <p><b>Systems and attackers.</b> A larger system pool (n) makes the <em>number</em> of compromised systems larger and more variable in absolute terms (spread ∝ √n), but the <em>fraction</em> compromised is more predictable (spread ∝ 1/√n): big infrastructures behave almost deterministically on average, small ones are lucky or unlucky. More attackers (m) does not change the law of one attacker's score. It improves what we know about it: the sample mean over attackers has standard error σ√n/√m, and the histograms get smoother. If the attackers' scores are added up, the aggregate has mean mnμ and variance mnσ², so it follows the same laws with mn steps.</p>
 <p><b>Caveats.</b> Real systems are not independent (shared software, shared credentials) and attackers learn, so the i.i.d. assumption is optimistic: correlation would make the variance of the total grow faster than n and the average would concentrate more slowly.</p>
 </main>
-<script src="hw4.js?v=4"></script>
+<script src="hw3.js?v=3"></script>
 </body>
 </html>
