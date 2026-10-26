@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Homework 4 – Penetration scores: LLN and CLT</title>
+<link rel="stylesheet" href="hw4.css?v=4">
+</head>
+<body>
+<main>
+<h1>Homework 4: Penetration Scores, LLN and CLT</h1>
+<p class="sub">n systems, m attackers, and what happens to the aggregate score when n grows. Everything is simulated in the browser.</p>
+
+<h2>The model</h2>
+<p>Each attacker goes through the n systems one after the other, and <code>X<sub>i</sub></code> is the score obtained on the i-th one. The steps are independent and identically distributed. The <em>m attackers</em> are m independent copies of the whole trajectory, so a simulation with m attackers gives m samples of any quantity built from X<sub>1</sub>…X<sub>n</sub>.</p>
+<ul>
+<li><b>Bernoulli:</b> X<sub>i</sub> ∈ {0,1}, P(X<sub>i</sub>=1)=p. A 1 means system i was penetrated. Mean μ = p, variance σ² = p(1−p).</li>
+<li><b>Rademacher:</b> X<sub>i</sub> = ±1 with probability ½ each. Net score: +1 breach, −1 repelled, no drift. μ = 0, σ² = 1.</li>
+</ul>
+<p>Three quantities per attacker: the total <code>S<sub>n</sub></code>, the average <code>S<sub>n</sub>/n</code> and the normalised total <code>S<sub>n</sub>/√n</code>.</p>
+
+<div class="card ctl">
+ <label>model <select id="model"><option value="bern">Bernoulli {0,1}</option><option value="rad">Rademacher {−1,+1}</option></select></label>
+ <label>p <input type="range" id="p" min="0.02" max="0.98" step="0.01" value="0.3"> <span id="pv" class="mono">0.30</span></label>
+ <label>n <input type="number" id="n" placeholder="systems" value="1000" min="10" max="20000" style="width:90px"></label>
+ <label>m <input type="number" id="m" placeholder="attackers" value="1000" min="10" max="5000" style="width:90px"></label>
+ <label>ε <input type="number" id="eps" placeholder="tolerance" value="0.05" min="0.01" step="0.01" style="width:80px"></label>
+ <label><input type="checkbox" id="logx" checked> log scale for k</label>
+ <button class="btn pri" id="go">New sample</button>
+</div>
+
+<h2>1. Sample trajectories</h2>
+<p>Twelve attackers (blue). Solid orange: theoretical mean. Dashed orange: mean ± 2σ of the running quantity. The running index is k = 1…n.</p>
+<div class="panels">
+ <div><h4>S<sub>k</sub> – total score</h4><canvas id="c1" width="420" height="260"></canvas></div>
+ <div><h4>S<sub>k</sub>/k – average score</h4><canvas id="c2" width="420" height="260"></canvas></div>
+ <div><h4>S<sub>k</sub>/√k – normalised score</h4><canvas id="c3" width="420" height="260"></canvas></div>
+</div>
+<p>The total spreads out like √k around its mean line. The average is squeezed onto <b id="muTxt"></b> as k grows. The normalised score keeps wandering inside a band of constant width, it never settles.</p>
+
+<h2>2. Distributions over the m attackers</h2>
+<p>Histograms of the final values at the chosen n, with the normal density that the CLT predicts (orange).</p>
+<div class="panels">
+ <div><h4>S<sub>n</sub></h4><canvas id="h1" width="420" height="260"></canvas></div>
+ <div><h4>S<sub>n</sub>/n</h4><canvas id="h2" width="420" height="260"></canvas></div>
+ <div><h4>S<sub>n</sub>/√n</h4><canvas id="h3" width="420" height="260"></canvas></div>
+</div>
+<p id="sum"></p>
+
+<h2>3. Increasing n</h2>
+<p>Same m attackers, checkpoints along the way (each row is the same trajectories observed at a different n). "emp / theory" compares simulation with the exact formula. The last two columns test the LLN and the CLT: the fraction of attackers with |S<sub>n</sub>/n − μ| &gt; ε (<span id="epsTxt"></span>) against the Chebyshev bound σ²/(nε²), and the Kolmogorov–Smirnov distance between the standardised S<sub>n</sub> and the standard normal.</p>
+<div class="wide"><table>
+<thead><tr><th>n</th><th>mean S<sub>n</sub>/n</th><th>Var S<sub>n</sub></th><th>Var S<sub>n</sub>/n</th><th>Var S<sub>n</sub>/√n</th><th>P(|S<sub>n</sub>/n−μ|&gt;ε)</th><th>KS distance</th></tr></thead>
+<tbody id="tab"></tbody></table></div>
+
+<h2>4. What it shows</h2>
+<p><b>Variances.</b> Var(S<sub>n</sub>) = nσ² grows linearly. Var(S<sub>n</sub>/n) = σ²/n goes to zero. Var(S<sub>n</sub>/√n) = σ² does not depend on n: the √n is exactly the scaling that keeps the spread alive without blowing it up or killing it. The table reproduces the three behaviours.</p>
+<p><b>Law of large numbers.</b> S<sub>n</sub>/n → μ in probability: for any ε the share of attackers whose average is farther than ε from μ goes to zero. Chebyshev gives the rate σ²/(nε²) as an upper bound; the simulated share is usually much smaller, so the bound is correct but not tight. In the Rademacher case the average goes to 0, in the Bernoulli case to p.</p>
+<p><b>Central limit theorem.</b> For the Rademacher model S<sub>n</sub>/√n → N(0,1) in distribution. The histogram overlay gets closer to the bell and the KS distance shrinks with n (it never reaches exactly 0: S<sub>n</sub> only takes values on a lattice, which costs on the order of 1/√n, and using a finite number of attackers adds noise of order 1/√m). For Bernoulli the same holds after centring: (S<sub>n</sub> − np)/√n → N(0, p(1−p)); without centring S<sub>n</sub>/√n drifts to infinity like p√n, which is what the third trajectory plot shows. The convergence is slower when p is close to 0 or 1 (the Bernoulli is very skewed there).</p>
+<p><b>Systems and attackers.</b> A larger system pool (n) makes the <em>number</em> of compromised systems larger and more variable in absolute terms (spread ∝ √n), but the <em>fraction</em> compromised is more predictable (spread ∝ 1/√n): big infrastructures behave almost deterministically on average, small ones are lucky or unlucky. More attackers (m) does not change the law of one attacker's score. It improves what we know about it: the sample mean over attackers has standard error σ√n/√m, and the histograms get smoother. If the attackers' scores are added up, the aggregate has mean mnμ and variance mnσ², so it follows the same laws with mn steps.</p>
+<p><b>Caveats.</b> Real systems are not independent (shared software, shared credentials) and attackers learn, so the i.i.d. assumption is optimistic: correlation would make the variance of the total grow faster than n and the average would concentrate more slowly.</p>
+</main>
+<script src="hw4.js?v=4"></script>
+</body>
+</html>
