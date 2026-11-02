@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Welford's recurrence and sampling statistics</title>
+<link rel="stylesheet" href="welford.css?v=1">
+</head>
+<body>
+<main>
+<h1>Welford's Recurrence and Sampling Statistics</h1>
+<p class="sub">One page, two exercises.</p>
+<div class="links"><a id="l1" href="#ex1">Exercise 1 – Welford's formulas</a><a id="l2" href="#ex2">Exercise 2 – Sampling mean and variance</a></div>
+
+<!-- ====================== EXERCISE 1 ====================== -->
+<section id="ex1">
+<h2>Ex. 1 – Welford's recurrence formulas</h2>
+<p>Notation for a stream x<sub>1</sub>, x<sub>2</sub>, …: the mean after n values is x̄<sub>n</sub> = (1/n) Σ x<sub>i</sub>, the sum of squares is SS<sub>n</sub> = Σ (x<sub>i</sub> − x̄<sub>n</sub>)², and the sample variance is s²<sub>n</sub> = SS<sub>n</sub>/(n−1).</p>
+
+<h3>Knuth's recurrence for the mean (the model to imitate)</h3>
+<p>From n·x̄<sub>n</sub> = (n−1)·x̄<sub>n−1</sub> + x<sub>n</sub> we get</p>
+<div class="eq">x̄<sub>n</sub> = x̄<sub>n−1</sub> + δ<sub>n</sub>/n, &nbsp; with δ<sub>n</sub> = x<sub>n</sub> − x̄<sub>n−1</sub></div>
+<p>The new mean is the old mean plus a correction proportional to the surprise δ<sub>n</sub>.</p>
+
+<h3>Recurrence for the sum of squares</h3>
+<p>Same idea: express SS<sub>n</sub> through SS<sub>n−1</sub> and the new point. Start from the shortcut SS<sub>n</sub> = Σ x<sub>i</sub>² − n·x̄<sub>n</sub>². Subtracting the same formula for n−1:</p>
+<div class="eq">SS<sub>n</sub> − SS<sub>n−1</sub> = x<sub>n</sub>² − n·x̄<sub>n</sub>² + (n−1)·x̄<sub>n−1</sub>²</div>
+<p>Write a = x̄<sub>n−1</sub>. Then x<sub>n</sub> = a + δ and x̄<sub>n</sub> = a + δ/n, so</p>
+<div class="eq">x<sub>n</sub>² = a² + 2aδ + δ²<br>n·x̄<sub>n</sub>² = n·a² + 2aδ + δ²/n</div>
+<p>Plug in; the a² and the 2aδ terms cancel:</p>
+<div class="eq">SS<sub>n</sub> − SS<sub>n−1</sub> = δ² − δ²/n = ((n−1)/n)·δ²</div>
+<p>Since x<sub>n</sub> − x̄<sub>n</sub> = δ − δ/n = ((n−1)/n)·δ, the same quantity can be written as δ·(x<sub>n</sub> − x̄<sub>n</sub>), a product of the "old" and the "new" deviation. Therefore</p>
+<div class="eq"><b>SS<sub>n</sub> = SS<sub>n−1</sub> + δ<sub>n</sub> · (x<sub>n</sub> − x̄<sub>n</sub>)</b>, &nbsp; SS<sub>1</sub> = 0</div>
+
+<h3>Recurrence for the variance</h3>
+<p>With s²<sub>n</sub> = SS<sub>n</sub>/(n−1), i.e. SS<sub>n</sub> = (n−1)s²<sub>n</sub>, and SS<sub>n−1</sub> = (n−2)s²<sub>n−1</sub>:</p>
+<div class="eq"><b>s²<sub>n</sub> = ((n−2)/(n−1))·s²<sub>n−1</sub> + δ<sub>n</sub>²/n</b>, &nbsp; n ≥ 2</div>
+<p>For the "divide by n" variance σ̂²<sub>n</sub> = SS<sub>n</sub>/n the same computation gives n·σ̂²<sub>n</sub> = (n−1)·σ̂²<sub>n−1</sub> + δ<sub>n</sub>(x<sub>n</sub> − x̄<sub>n</sub>).</p>
+
+<h3>Code</h3>
+<p>Inside the loop, the core logic is three lines:</p>
+<div class="code">const d = x - mean;
+mean += d / n;
+ss += d * (x - mean);</div>
+<p>Order matters: <code>ss</code> uses the old <code>d</code> and the already updated <code>mean</code>.</p>
+
+<h3>Try it</h3>
+<div class="card">
+ <label>Data<textarea id="nums" placeholder="numbers separated by spaces"></textarea></label>
+ <div class="wide"><table><thead><tr><th>n</th><th>x<sub>n</sub></th><th>mean</th><th>SS</th><th>variance (÷ n−1)</th><th>variance (÷ n)</th></tr></thead><tbody id="stepTab"></tbody></table></div>
+ <p id="chk" class="mute"></p>
+</div>
+
+<h3>Why bother: numerical stability</h3>
+<p>The textbook one-pass formula (Σx² − (Σx)²/n)/(n−1) subtracts two huge, almost equal numbers when the data have a large mean and a small spread. Welford only ever works with small deviations.</p>
+<div class="card">
+ <div class="row"><label>offset <input type="number" id="off" placeholder="offset" value="1000000000" style="width:150px"></label><button class="btn pri" id="stBtn">Generate again</button></div>
+ <pre id="stab"></pre>
+</div>
+</section>
+
+<!-- ====================== EXERCISE 2 ====================== -->
+<section id="ex2" hidden>
+<h2>Ex. 2 – Sampling mean and variance</h2>
+<p>This extends the penetration-score homework: each attempt now gets a score from 0 to 10 drawn from a fixed distribution with mean μ and variance σ². There are m hackers, each attacking n systems, so each hacker has a trajectory of n scores. For every hacker, Welford's recurrence (Ex. 1) gives the sample mean x̄ and the sample variance s² (÷ n−1). Then we average these over the m hackers and compare with μ and σ².</p>
+<div class="card ctl">
+ <label>distribution <select id="dist"><option value="bin">Binomial(10, q)</option><option value="unif">Uniform {0,…,10}</option><option value="geo">Truncated geometric</option></select></label>
+ <label>q (or r) <input type="range" id="q" min="0.05" max="0.95" step="0.05" value="0.4"> <span id="qv" class="mono">0.40</span></label>
+ <label>n <input type="number" id="n" placeholder="systems" value="100" min="2" max="5000" style="width:90px"></label>
+ <label>m <input type="number" id="m" placeholder="hackers" value="1000" min="10" max="5000" style="width:90px"></label>
+ <button class="btn pri" id="go">New sample</button>
+</div>
+<p>Score distribution (probability of each value): <span id="theo"></span></p>
+<div class="hist" id="pmf" style="max-width:420px"></div>
+
+<h3>Running estimates of eight hackers</h3>
+<p>Welford updating while the scores come in. Dashed orange is the true value.</p>
+<div class="panels">
+ <div><h4>running sample mean</h4><canvas id="c1" width="420" height="260"></canvas></div>
+ <div><h4>running sample variance</h4><canvas id="c2" width="420" height="260"></canvas></div>
+</div>
+
+<h3>Averages over the m hackers, for increasing n</h3>
+<div class="wide"><table>
+<thead><tr><th>n</th><th>average of sample means</th><th>average of s² (÷ n−1)</th><th>average of variance ÷ n / expected</th><th>variance of sample means: sim / theory</th><th>variance of s²: sim / theory</th></tr></thead>
+<tbody id="tab"></tbody></table></div>
+<p class="mute">Theory: Var(x̄) = σ²/n and Var(s²) = (1/n)·(μ<sub>4</sub> − ((n−3)/(n−1))·σ⁴), with μ<sub>4</sub> the fourth central moment of the score distribution (computed exactly from the probabilities above).</p>
+
+<h3>Distribution across hackers at n = <span id="hn"></span></h3>
+<div class="panels">
+ <div><h4>sample means (orange curve: N(μ, σ²/n))</h4><canvas id="h1" width="420" height="260"></canvas></div>
+ <div><h4>sample variances (dashed: σ²)</h4><canvas id="h2" width="420" height="260"></canvas></div>
+</div>
+
+<h3>Conclusions</h3>
+<p><b>The averages match the theory.</b> The average of the sample means is close to μ for every n, even for n = 2: the sample mean is an unbiased estimator, E[x̄] = μ. The average of s² with the n−1 divisor is close to σ² for every n: it is unbiased too. If we divide by n instead, the average sits at σ²(n−1)/n, visibly too low for small n and negligible for large n (the right-hand part of the fourth column). The reason is that deviations are measured from x̄, which is fitted on the same data, so they are a bit smaller than deviations from the true μ; the lost degree of freedom is exactly what n−1 repays.</p>
+<p><b>Why this is useful in inferential statistics.</b> μ and σ² are normally unknown; we only have one sample. This experiment shows that x̄ and s² are right on average, so using them as estimates does not push the answer in a systematic direction, and it also shows how far a single sample can be from the truth. That spread is what confidence intervals and tests are built on (the standard error of the mean is s/√n). Welford is how a program obtains them from a stream of data in one pass without storing it.</p>
+<p><b>More systems per hacker.</b> The variability of the estimates shrinks as n grows: the variance of the sample means follows σ²/n, and the variance of s² also decays like 1/n, though with a larger constant, because it depends on the fourth moment of the scores (a heavier-tailed or more skewed score distribution makes s² noisier). Both estimators are therefore consistent: single hackers' estimates concentrate around μ and σ². The histograms get narrower and the one for the means looks more and more like the normal curve (CLT, as in the previous homework). The number of hackers m does not change the quality of one estimate; it only makes the averages in the table, and the histograms, less noisy.</p>
+</section>
+</main>
+<script src="welford.js?v=1"></script>
+</body>
+</html>
