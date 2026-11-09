@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Riemann, Lebesgue and the normal CDF</title>
+<link rel="stylesheet" href="integration.css?v=1">
+</head>
+<body>
+<main>
+<h1>Riemann vs Lebesgue, and the Normal CDF</h1>
+<p class="sub">One page, two exercises.</p>
+<div class="links"><a id="l1" href="#ex1">Exercise 1 – Riemann and Lebesgue</a><a id="l2" href="#ex2">Exercise 2 – Normal CDF</a></div>
+
+<!-- ====================== EXERCISE 1 ====================== -->
+<section id="ex1">
+<h2>Es 1 – Riemann and Lebesgue integration</h2>
+<p><b>Riemann:</b> cut the <em>domain</em> [a, b] into n cells, pick one point in each cell, add up f(tag) × width. <b>Lebesgue:</b> cut the <em>range</em> of f into N horizontal strips [y<sub>k</sub>, y<sub>k+1</sub>), find the set of x whose value falls in the strip (the preimage), and add up y<sub>k</sub> × μ(preimage). With the strip's lower end as height this is the integral of a simple function below f, so it approaches the integral from below.</p>
+<p>The catch for the Lebesgue side is the measure of the preimage. Here it is computed for each function by splitting [a, b] into stretches where f is monotone and finding the crossing point f(x) = t by bisection (about 40 evaluations per level and per stretch). Evaluations of f are counted for both methods, so the cost can be compared. For the two pathological functions nothing can be evaluated on a computer (every double is a rational number), so the Lebesgue value comes from measure theory and the Riemann tags are classified by hand: rational (left, midpoint, right) or "random real" (irrational with probability 1).</p>
+<div class="card ctl">
+ <label>function <select id="fn"></select></label>
+ <label>Riemann tags <select id="mode"><option value="mid">midpoint</option><option value="left">left</option><option value="right">right</option><option value="rand">random</option></select></label>
+ <label>cells / strips in the pictures <input type="range" id="np" min="4" max="40" value="12"> <span id="npv" class="mono">12</span></label>
+</div>
+<p id="info"></p>
+<div class="panels">
+ <div><h4>Riemann: vertical cells</h4><canvas id="pr" width="420" height="260"></canvas></div>
+ <div><h4>Lebesgue: horizontal strips (simple function under f)</h4><canvas id="pl" width="420" height="260"></canvas></div>
+</div>
+
+<h3>Numbers (same N = cells = strips)</h3>
+<div class="wide"><table>
+<thead><tr><th>N</th><th>Riemann</th><th>error</th><th>f evals</th><th>ms</th><th>Lebesgue</th><th>error</th><th>f evals</th><th>ms</th></tr></thead>
+<tbody id="tab1"></tbody></table></div>
+<h3>Convergence</h3>
+<canvas id="conv" width="560" height="300"></canvas>
+<p id="slope"></p>
+
+<h3>What I see</h3>
+<p><b>Same value when both exist.</b> For sin x, x², |x − 0.5|, sin x / x and the two step functions, both columns converge to the same number, which matches the theory: a bounded Riemann-integrable function is Lebesgue integrable and the two integrals coincide.</p>
+<p><b>Accuracy and convergence.</b> The midpoint Riemann sum is second-order for the smooth functions (slope ≈ −2 in the plot). The Lebesgue sum built from lower simple functions is only first-order: its error is at most (max f − min f)(b − a)/N, whatever the smoothness, so slope ≈ −1. Using the lower end of every strip costs us accuracy; a rule that picked a better representative in the strip would do better, but that is no longer the textbook definition. At a jump (the step functions) the Riemann error is O(1/n), coming from the one cell that contains the jump, and an even n hits the jump exactly at the cell boundary.</p>
+<p><b>Cost.</b> The Riemann sum needs n evaluations. The Lebesgue sum needs the preimage measure for N levels, and that is where almost all the evaluations go (roughly 40 × N × number of stretches here). It also needs structural knowledge of f (where it is monotone). For an arbitrary black-box f we can only sample it, and sampling the preimage on a fine grid is just a Riemann sum in disguise. So the Lebesgue idea is conceptually more powerful, but it is the Riemann one that is practical on a computer.</p>
+<p><b>1/√x.</b> The integrand is unbounded at 0. A left-endpoint sum evaluates f(0) = ∞ and breaks; midpoint works but converges slowly, error ≈ 0.59/√n, because the first cell carries the singularity. The Lebesgue side handles it naturally (the strips just go up), but the strips have to stop somewhere: with a cut-off at height √N the tail above it is lost and the error is again of order 1/√N.</p>
+<p><b>Dirichlet.</b> Riemann sums depend on the tags: with rational tags every term is 1 and the sum is 1, with irrational tags it is 0. The upper Darboux sum is 1 and the lower is 0 for every partition, so the function is not Riemann integrable. For Lebesgue the rationals are countable, so the preimage of {1} has measure 0 and the integral is 0.</p>
+<p><b>Thomae.</b> It is discontinuous exactly at the rational points (a set of measure zero), so by Lebesgue's criterion it is Riemann integrable, with integral 0. The Riemann sums with rational tags do go to 0, but erratically: they depend on how many divisors n has, roughly like (number of divisors of n)/n. With left tags I get 0.0059 for n = 1024 but only 0.0020 for the prime n = 1021, and 0.0017 for n = 4096, so the sequence is not even monotone. The Lebesgue sum is exactly 0 because every level set {f ≥ t}, t &gt; 0, is finite.</p>
+</section>
+
+<!-- ====================== EXERCISE 2 ====================== -->
+<section id="ex2" hidden>
+<h2>Es 2 – Numerical computation of the normal CDF</h2>
+<p>Φ(x) = ∫<sub>−∞</sub><sup>x</sup> φ(t) dt, with φ(t) = e<sup>−t²/2</sup>/√(2π). By symmetry Φ(−x) = 1 − Φ(x) and Φ(x) = ½ + ∫<sub>0</sub><sup>x</sup> φ, so only the integral from 0 to |x| has to be computed. Methods implemented:</p>
+<ul>
+<li><b>Trapezoid and Simpson</b> on [0, |x|] with n panels.</li>
+<li><b>Power series</b> Φ(x) = ½ + φ(x)·(x + x³/3 + x⁵/(3·5) + …). Obtained by writing the Taylor series of e<sup>−t²/2</sup> in the form that makes all terms positive; it is the erf series rearranged so that no cancellation happens for x &gt; 0.</li>
+<li><b>Continued fraction</b> for the upper tail: Q(x) = 1 − Φ(x) = φ(x) / (x + 1/(x + 2/(x + 3/(x + …)))). Converges fast for large x and keeps relative accuracy in the tail, where 1 − Φ would lose all its digits.</li>
+<li><b>Hybrid</b> (my efficient version): series for |x| ≤ 2.5, continued fraction beyond.</li>
+<li><b>Abramowitz–Stegun 26.2.17</b>: a five-term polynomial in t = 1/(1 + 0.2316419x), absolute error below 7.5·10<sup>−8</sup>.</li>
+</ul>
+
+<h3>Calculator</h3>
+<div class="card">
+ <div class="row"><label>x <input type="number" id="x" placeholder="x" value="1.5" step="0.1" style="width:100px"></label>
+ <label>panels n <input type="number" id="np2" placeholder="panels" value="20" min="2" style="width:90px"></label></div>
+ <pre id="calc"></pre>
+</div>
+
+<h3>Comparison with reference values from the web</h3>
+<p>Errors are absolute differences from the reference. "A&amp;S" values come from Abramowitz &amp; Stegun Table 26.1 (as reproduced on the J wiki), "SciPy" values are the output of <code>scipy.stats.norm.cdf</code> shown in a FU Berlin course page. Simpson and trapezoid use n = <span id="nTxt"></span> panels.</p>
+<div class="wide"><table>
+<thead><tr><th>x</th><th>reference Φ(x)</th><th>source</th><th>hybrid</th><th>series</th><th>A&amp;S</th><th>Simpson</th><th>trapezoid</th></tr></thead>
+<tbody id="refTab"></tbody></table></div>
+<p class="mute">The A&amp;S reference values have 15 digits, so errors around 1e-16–1e-15 are rounding of the reference, not of the method.</p>
+
+<h3>Accuracy of the integration rules</h3>
+<canvas id="conv2" width="560" height="300"></canvas>
+<p id="order"></p>
+
+<h3>Efficiency</h3>
+<div class="card">
+ <button class="btn pri" id="bench">Run benchmark (100 000 points in [−5, 5])</button>
+ <div class="wide"><table><thead><tr><th>method</th><th>time (ms)</th><th>max error vs hybrid on [−5, 5]</th></tr></thead><tbody id="benchTab"></tbody></table></div>
+ <p class="mute">Timings depend on the browser and the machine. The hybrid and the A&amp;S polynomial need a few dozen floating-point operations per point, the quadrature rules need n evaluations of an exponential.</p>
+</div>
+
+<h3>Why Φ is not an elementary function</h3>
+<p>Elementary functions are built from polynomials, exp, log and algebraic operations by composition. <b>Liouville's theorem</b> (1830s) says when an integral ∫ f(x) e<sup>g(x)</sup> dx, with f and g rational functions, is itself elementary: exactly when there is a rational function r such that</p>
+<div class="eq">r′(x) + r(x)·g′(x) = f(x), &nbsp; and then ∫ f e<sup>g</sup> = r e<sup>g</sup>.</div>
+<p>For e<sup>−t²/2</sup> we have f = 1 and g = −t²/2, so we would need a rational r with r′ − t·r = 1. Try it:</p>
+<ul>
+<li>If r is a polynomial of degree d ≥ 0, then t·r has degree d + 1 ≥ 1 and r′ has lower degree, so r′ − t·r has degree d + 1 and cannot be the constant 1. (r = 0 gives 0 ≠ 1.)</li>
+<li>If r has a pole of order k ≥ 1 at some point, r′ has a pole of order k + 1 there while t·r has order at most k, so r′ − t·r still has a pole and is not 1.</li>
+</ul>
+<p>No such r exists, so ∫ e<sup>−t²/2</sup> dt is not elementary, and neither is Φ. The same argument works for e<sup>−t²</sup>, the integrand of erf. (The proof of the theorem itself is differential algebra and is in the notes linked in the assignment; here only the check for this integrand is shown.)</p>
+
+<h3>The error function, and why we still need numerics</h3>
+<p>The way out is to <em>define</em> a new function: erf(z) = (2/√π) ∫<sub>0</sub><sup>z</sup> e<sup>−t²</sup> dt. Then Φ(x) = ½ (1 + erf(x/√2)) holds exactly, and in the calculator above the last line prints erf(x/√2) = 2Φ(x) − 1. This gives an exact analytic representation but not a formula we can evaluate: erf is just the integral under a new name, with no closed form in terms of elementary functions. To get numbers one still needs numerical integration, the power series (which converges for every x but loses digits through cancellation when |z| is large and alternating), the continued fraction in the tails, or rational/polynomial approximations like the one of Abramowitz–Stegun. Libraries combine several of these in different ranges, which is exactly what the hybrid does.</p>
+<p><b>Conclusions from the experiments.</b> Trapezoid converges as h² and Simpson as h⁴, so for the same number of evaluations Simpson is far better; but both are far more expensive than a few dozen operations. The A&amp;S polynomial is the cheapest and good to about 7 digits, enough for many statistical purposes, but its error does not shrink. The series and continued fraction reach full double precision (about 1e-16) at a cost that depends on x, and the tail form is the one to trust for very small probabilities.</p>
+<p class="refs">Sources for the reference values: <a href="https://code.jsoftware.com/wiki/Essays/Normal_CDF">J wiki, Essays/Normal CDF</a> (Abramowitz &amp; Stegun, Table 26.1); <a href="https://userpage.fu-berlin.de/soga/soga-py/200/2040_continous_random_variables/2043_The_Standard_Normal_Distribution.html">FU Berlin, The Standard Normal Distribution</a> (scipy.stats.norm.cdf). Theory notes from the assignment: <a href="https://faculty.etsu.edu/gardnerr/4047/notes-Hogg-McKean-Craig/Hogg-McKean-Craig-3-4.pdf">Hogg–McKean–Craig, section 3.4</a>.</p>
+</section>
+</main>
+<script src="integration.js?v=1"></script>
+</body>
+</html>
