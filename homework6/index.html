@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Homework – Statistical independence and the chi-square test</title>
+<link rel="stylesheet" href="independence.css?v=1">
+</head>
+<body>
+<main>
+<h1>Statistical Independence: Contingency Tables and the χ² Test</h1>
+<p class="sub">Give the page a list of (X, F) pairs and it builds the table, the frequencies, the expected counts and the test.</p>
+
+<h2>Theory in a few lines</h2>
+<p>Two events are independent when P(A ∩ B) = P(A)·P(B). For two categorical variables this has to hold for every pair of values:</p>
+<div class="eq">P(X = x, F = f) = P(X = x) · P(F = f) for all x, f &nbsp;⟺&nbsp; P(F = f | X = x) = P(F = f) for all x, f</div>
+<p>In words: knowing X does not change the distribution of F, so all the conditional distributions P(F | X = x) coincide with the marginal one. With data, the table will never match this exactly, because of sampling noise. The question is whether the gap is bigger than noise would explain. Under independence the expected count in cell (i, j) is E<sub>ij</sub> = (row total<sub>i</sub> × column total<sub>j</sub>) / n, and Pearson's statistic χ² = Σ (O<sub>ij</sub> − E<sub>ij</sub>)² / E<sub>ij</sub> follows approximately a χ² distribution with (R − 1)(C − 1) degrees of freedom when the null hypothesis "X and F are independent" is true (rule of thumb: expected counts of at least 5). The p-value is the probability, under independence, of a statistic at least as large as the one observed.</p>
+
+<h2>Data</h2>
+<div class="card">
+ <div class="row ctl">
+  <label>dataset <select id="preset"><option value="hair">Hair × eye colour (592 students)</option><option value="indep">Simulated: independent</option><option value="dep">Simulated: dependent</option><option value="own">My own data</option></select></label>
+  <label>sample size <input type="number" id="size" placeholder="n" value="300" min="20" max="5000" style="width:80px"></label>
+  <button class="btn" id="again">New sample</button>
+  <label>α <input type="number" id="alpha" placeholder="α" value="0.05" step="0.01" min="0.001" max="0.5" style="width:80px"></label>
+  <label><input type="checkbox" id="hdr"> first line is a header</label>
+ </div>
+ <textarea id="data" placeholder="x,f (one pair per line)" style="min-height:130px"></textarea>
+ <p id="msg" class="mute"></p>
+ <p class="mute">Hair × eye colour is the classic <code>HairEyeColor</code> table from R (592 students, summed over sex), expanded to one row per student. The simulated sets draw X ∈ {A, B, C} and F ∈ {low, mid, high}: in the independent one F ignores X, in the dependent one the chance of "high" grows from A to C. Paste anything of the form <code>value,value</code> to test your own data.</p>
+</div>
+
+<div id="results">
+<h2>1. Contingency table and marginals</h2>
+<p>Observed counts O<sub>ij</sub>, with row totals, column totals and n.</p>
+<div id="t-obs"></div>
+<h3>Relative frequencies</h3>
+<p>Joint frequencies f<sub>ij</sub> = O<sub>ij</sub>/n. The last row and column are the marginal frequencies of F and X.</p>
+<div id="t-joint"></div>
+<p>Conditional frequencies of F given X (every row sums to 1). If the variables were independent, all rows would look like the bottom row of the marginals.</p>
+<div id="t-cx"></div>
+<p>Conditional frequencies of X given F (every column sums to 1).</p>
+<div id="t-cf"></div>
+
+<h2>2. Expected counts under independence</h2>
+<div id="t-exp"></div>
+
+<h2>3. Chi-square statistic</h2>
+<p>Each cell contributes (O − E)²/E. Shading shows the sign of the deviation: orange where there are more observations than expected, blue where there are fewer; darker means larger standardised residual (O − E)/√E.</p>
+<div id="t-chi"></div>
+<div id="stat"></div>
+<canvas id="plot" width="560" height="300"></canvas>
+<p class="mute">Black curve: χ² density under independence. Dashed orange line: the observed statistic. The shaded orange region starts at the critical value; the observed statistic in the shaded part means rejection. (Blue bars appear after the permutation test.)</p>
+<div class="row"><button class="btn pri" id="perm">Permutation test (2000 shuffles)</button></div>
+<p id="permOut"></p>
+<p class="mute">Permutation idea: if X and F are independent, shuffling the F labels among the observations should give tables just like the real one. We shuffle 2000 times, recompute χ² each time and see how often the shuffled value reaches the observed one. It needs no approximation, so it is a useful check when expected counts are small.</p>
+</div>
+
+<h2>Interpretation</h2>
+<p><b>Reading the result.</b> A small p-value (below α) says the observed table would be very unlikely if X and F were independent, so we reject independence and say the variables are <em>statistically dependent</em> (associated). A large p-value only says that the data do not give enough evidence against independence; it is not a proof of independence, especially with small samples. Try the two simulated datasets: the independent one usually gives a large p-value, but about one time in twenty it gives p &lt; 0.05 by chance, which is what α = 0.05 means. The dependent one is rejected almost every time when n is not tiny.</p>
+<p><b>Significance is not size.</b> The χ² statistic grows with n, so with thousands of observations even a negligible dependence becomes "significant". That is why the page also prints Cramér's V = √(χ² / (n·min(R−1, C−1))), which goes from 0 (no association) to 1 (perfect association) regardless of n. Compare V when you change the sample size of the dependent simulation: χ² grows, V stays about the same.</p>
+<p><b>Hair and eye colour.</b> The test strongly rejects independence. Looking at the shaded table the pattern is clear: blond hair goes with blue eyes more than expected and black or brown hair with brown eyes. The deviation is large for these cells and the conditional frequencies are very different from row to row.</p>
+
+<h2>Association is not causation</h2>
+<p>The χ² test is symmetric in X and F: it detects that the two variables move together but says nothing about why or in which direction. A dependence can come from X influencing F, from F influencing X, from a third variable that influences both (a confounder), or from how the sample was selected. Hair and eye colour are clearly associated, but nobody would say hair colour causes eye colour; both are linked through ancestry and genetics. Another classic trap is Simpson's paradox, where an association visible in the pooled table reverses once the data are split by a third variable. To make a causal claim one needs more than a contingency table: a randomised experiment, or a careful argument and model for observational data. This homework shows <em>that</em> two variables are associated, not <em>why</em>.</p>
+</main>
+<script src="independence.js?v=1"></script>
+</body>
+</html>
